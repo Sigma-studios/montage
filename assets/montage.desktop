@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Montage
+GenericName=Clip editor
+Comment=Cut, caption and share your saved clips
+Exec=montage
+Icon=camera-video
+Terminal=false
+Categories=AudioVideo;Video;AudioVideoEditing;
+Keywords=clip;replay;video;gif;

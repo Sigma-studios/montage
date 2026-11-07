@@ -1,0 +1,54 @@
+[package]
+name = "montage"
+description = "A clip editor for the replay buffer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["media", "gui"]
+# Encoding and decoding through libav, and the exports' captions. Off only to
+# check the other systems' code from one machine without their FFmpeg.
+media = ["dep:montage-media", "dep:montage-text"]
+# The window: library, editor, settings.
+gui = ["media", "dep:eframe", "dep:montage-text", "dep:rfd", "dep:trash"]
+
+[dependencies]
+montage-core.workspace = true
+montage-media = { workspace = true, optional = true }
+montage-text = { workspace = true, optional = true }
+eframe = { version = "0.37", optional = true }
+rfd = { version = "0.18", optional = true }
+trash = { version = "5.3", optional = true }
+anyhow.workspace = true
+clap.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+notify-rust = { version = "4.18", default-features = false, features = ["z"] }
+wl-clipboard-rs = "0.9"
+# The settings page names the screens by model (`wl_output`).
+wayland-client = "0.31"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile.workspace = true
+egui_kittest = { version = "0.37", features = ["wgpu", "snapshot", "eframe"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+mac-notification-sys = "0.6"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSArray", "NSString", "NSURL"] }
+objc2-app-kit = { version = "0.3", features = ["NSPasteboard"] }
+
+[target.'cfg(windows)'.dependencies]
+clipboard-win = "5.4"
+tauri-winrt-notification = "0.8"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Console",
+    "Win32_System_Threading",
+] }

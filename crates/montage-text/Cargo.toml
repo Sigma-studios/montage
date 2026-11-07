@@ -1,0 +1,18 @@
+[package]
+name = "montage-text"
+description = "Montage's captions: fonts, and drawing text with an outline"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[dependencies]
+montage-core.workspace = true
+cosmic-text = "0.19"
+# The version cosmic-text uses, for `fontdb::Query`.
+fontdb = "0.23"
+tiny-skia = "0.12"

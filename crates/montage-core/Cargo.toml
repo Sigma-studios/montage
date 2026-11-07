@@ -1,0 +1,20 @@
+[package]
+name = "montage-core"
+description = "Montage's clip folders, edit model and export presets"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[dependencies]
+directories.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

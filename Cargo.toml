@@ -1,0 +1,26 @@
+[workspace]
+resolver = "3"
+members = ["crates/montage-core", "crates/montage-media", "crates/montage-text", "crates/montage"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "AGPL-3.0-only"
+repository = "https://github.com/Sigma-studios/montage"
+
+[workspace.dependencies]
+montage-core = { path = "crates/montage-core" }
+montage-media = { path = "crates/montage-media" }
+montage-text = { path = "crates/montage-text" }
+anyhow = "1"
+clap = { version = "4.6", features = ["derive"] }
+directories = "6"
+serde = { version = "1", features = ["derive"] }
+tempfile = "3"
+thiserror = "2"
+toml = "1"
+
+[profile.release]
+lto = "thin"
+strip = true
