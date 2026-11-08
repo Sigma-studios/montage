@@ -215,7 +215,7 @@ fn full_reencodes_when_the_cut_starts_between_keyframes() {
     )
     .unwrap();
     assert!(
-        report.method == "h264_videotoolbox" || report.method == "libx264 crf 18",
+        matches!(report.method.as_str(), "h264_videotoolbox" | "h264_nvenc" | "libx264 crf 18"),
         "{}",
         report.method
     );

@@ -163,7 +163,11 @@ in
       Unit = {
         Description = "gpu-screen-recorder replay buffer, set up by Montage";
         PartOf = [ "graphical-session.target" ];
-        After = [ "pipewire.service" ];
+        # The recorder captures through the compositor.
+        After = [
+          "graphical-session.target"
+          "pipewire.service"
+        ];
       };
       Service = {
         # Reads config.toml, creates the folders and execs gpu-screen-recorder,

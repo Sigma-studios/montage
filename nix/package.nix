@@ -8,7 +8,10 @@
   libxkbcommon,
   vulkan-loader,
   libGL,
-  xorg,
+  libx11,
+  libxcursor,
+  libxi,
+  libxrandr,
   gpu-screen-recorder,
   pipewire,
   systemd,
@@ -64,10 +67,10 @@ rustPlatform.buildRustPackage {
         libxkbcommon
         vulkan-loader
         libGL
-        xorg.libX11
-        xorg.libXcursor
-        xorg.libXi
-        xorg.libXrandr
+        libx11
+        libxcursor
+        libxi
+        libxrandr
       ]
     } $out/bin/montage
   '';
