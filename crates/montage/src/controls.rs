@@ -296,17 +296,27 @@ impl Controls {
         Ok(command)
     }
 
-    /// `$XDG_RUNTIME_DIR/montage/montage-on-save`, a link to Montage. Run
-    /// under that name, Montage acts as `on-save`, so the recorder's hook is
-    /// a plain path.
+    /// `$XDG_RUNTIME_DIR/montage/montage-on-save`, a script that runs
+    /// `montage on-save` with the recorder's arguments, so the recorder's
+    /// hook is a plain path. Not a link to Montage under that name:
+    /// gpu-screen-recorder resolves the hook's links before running it, so
+    /// Montage would start under its own name and take the file for a
+    /// command.
     fn install_on_save_hook(&self) -> Result<PathBuf> {
         let dir = self.runtime_dir.join("montage");
         fs::create_dir_all(&dir).with_context(|| format!("can't create {}", dir.display()))?;
         let link = dir.join(ON_SAVE_NAME);
         remove_if_present(&link)?;
         #[cfg(unix)]
-        std::os::unix::fs::symlink(&self.self_exe, &link)
-            .with_context(|| format!("can't create {}", link.display()))?;
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let script = on_save_script(&self.self_exe);
+            let partial = dir.join(format!(".{ON_SAVE_NAME}.partial"));
+            fs::write(&partial, script)
+                .and_then(|()| fs::set_permissions(&partial, fs::Permissions::from_mode(0o755)))
+                .and_then(|()| fs::rename(&partial, &link))
+                .with_context(|| format!("can't create {}", link.display()))?;
+        }
         #[cfg(not(unix))]
         fs::copy(&self.self_exe, &link)
             .with_context(|| format!("can't create {}", link.display()))?;
@@ -339,8 +349,15 @@ fn remove_if_present(path: &Path) -> Result<()> {
     }
 }
 
+/// The hook script: `montage on-save` with whatever the recorder passes.
+#[cfg(unix)]
+fn on_save_script(montage: &Path) -> String {
+    let quoted = montage.to_string_lossy().replace('\'', "'\\''");
+    format!("#!/bin/sh\nexec '{quoted}' on-save \"$@\"\n")
+}
+
 /// Whether Montage was started as the recorder's hook, under
-/// `montage-on-save`.
+/// `montage-on-save` (a link, as earlier versions installed).
 pub fn started_as_on_save(argv0: &OsStr) -> bool {
     Path::new(argv0).file_name() == Some(OsStr::new(ON_SAVE_NAME))
 }
@@ -703,6 +720,28 @@ mod tests {
     }
 
     #[test]
+    fn the_hook_script_runs_on_save_even_through_a_resolved_path() {
+        // What gpu-screen-recorder does: resolve the hook, then run it.
+        let s = Sandbox::new(0);
+        let tmp = tempfile::tempdir().unwrap();
+        let log = tmp.path().join("args");
+        let fake = tmp.path().join("it's montage");
+        fs::write(&fake, format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\n", log.display())).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
+        let hook = s.controls.runtime_dir.join("montage").join(ON_SAVE_NAME);
+        fs::create_dir_all(hook.parent().unwrap()).unwrap();
+        fs::write(&hook, on_save_script(&fake)).unwrap();
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+        let status = Command::new(fs::canonicalize(&hook).unwrap())
+            .args(["/videos/Replay 1.mp4", "replay"])
+            .status()
+            .unwrap();
+        assert!(status.success());
+        assert_eq!(fs::read_to_string(&log).unwrap(), "on-save\n/videos/Replay 1.mp4\nreplay\n");
+    }
+
+    #[test]
     fn recorder_command_uses_the_config() {
         let s = Sandbox::new(0);
         let command = s.controls.recorder_command().unwrap();
@@ -717,10 +756,9 @@ mod tests {
         };
         assert_eq!(at("-sc"), hook.display().to_string());
         assert_eq!(
-            fs::read_link(&hook).unwrap(),
-            PathBuf::from("/nix/store/montage/bin/montage")
+            fs::read_to_string(&hook).unwrap(),
+            "#!/bin/sh\nexec '/nix/store/montage/bin/montage' on-save \"$@\"\n"
         );
-        assert!(started_as_on_save(hook.as_os_str()));
         assert_eq!(at("-a"), "app-inverse:gsr-chime");
         assert_eq!(
             at("-ipc"),
