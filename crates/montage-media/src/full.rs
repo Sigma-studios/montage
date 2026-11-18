@@ -68,7 +68,7 @@ pub(crate) fn export_full(
         fps,
         format: Pixel::YUV420P,
     };
-    let mix = mix_audio(input, cut, gains, cancel)?;
+    let mix = mix_audio(input, cut, gains, cancel, &mut |_| {})?;
     let bit_rate = video_bit_rate(input, &info);
 
     let mut last = MediaError::NoEncoder("libx264");

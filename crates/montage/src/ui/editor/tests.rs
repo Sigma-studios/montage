@@ -81,6 +81,7 @@ fn fake_estimate(_: &MediaInfo, preset: &ExportPreset, cut: Cut) -> u64 {
         ExportPreset::Share { .. } => 1_100_000.0,
         ExportPreset::Full => 6_000_000.0,
         ExportPreset::Gif(_) => 700_000.0,
+        ExportPreset::Wav => 192_000.0,
     };
     (per_second * cut.duration()) as u64
 }

@@ -18,6 +18,8 @@ pub enum Preset {
     Full,
     /// The `[gif]` settings.
     Gif,
+    /// The audio alone, mixed down, as a WAV.
+    Wav,
 }
 
 /// Exports the clip at `path` with `preset` and the clip's saved edit (cut,
@@ -59,14 +61,16 @@ pub fn export(
         ),
         Preset::Full => (ExportPreset::Full, ExportKind::Edit),
         Preset::Gif => (ExportPreset::Gif(config.gif), ExportKind::Gif),
+        Preset::Wav => (ExportPreset::Wav, ExportKind::Wav),
     };
     let output = match out {
         Some(out) => out.to_path_buf(),
         None => clip.next_export_path(export_kind),
     };
 
-    // Loading the fonts takes a moment, so only for captions.
-    let mut captions = (!edit.captions.is_empty()).then(|| {
+    // Loading the fonts takes a moment, so only for captions, which a WAV
+    // doesn't have.
+    let mut captions = (!edit.captions.is_empty() && preset != Preset::Wav).then(|| {
         let fonts = std::sync::Arc::new(std::sync::Mutex::new(montage_text::Fonts::load()));
         montage_text::CaptionOverlay::new(fonts, edit.captions.clone(), cut)
     });

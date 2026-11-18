@@ -56,6 +56,8 @@ pub enum ExportKind {
     Edit,
     /// A GIF: `<name>.gif`.
     Gif,
+    /// The audio alone: `<name>.wav`.
+    Wav,
 }
 
 impl ExportKind {
@@ -64,6 +66,7 @@ impl ExportKind {
             ExportKind::Share => ("-share", "mp4"),
             ExportKind::Edit => ("-edit", "mp4"),
             ExportKind::Gif => ("", "gif"),
+            ExportKind::Wav => ("", "wav"),
         }
     }
 }

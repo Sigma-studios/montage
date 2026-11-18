@@ -1,4 +1,5 @@
-//! The export bar: the preset (Share, Full quality, GIF and its settings),
+//! The export bar: the preset (Share, Full quality, GIF and its settings,
+//! WAV),
 //! the destination (the clipboard or a file), the estimated size, and the
 //! export itself, on a thread, with a progress bar and Cancel.
 
@@ -23,16 +24,23 @@ pub enum PresetChoice {
     Share,
     Full,
     Gif,
+    Wav,
 }
 
 impl PresetChoice {
-    pub const ALL: [PresetChoice; 3] = [PresetChoice::Share, PresetChoice::Full, PresetChoice::Gif];
+    pub const ALL: [PresetChoice; 4] = [
+        PresetChoice::Share,
+        PresetChoice::Full,
+        PresetChoice::Gif,
+        PresetChoice::Wav,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
             PresetChoice::Share => "Share (MP4)",
             PresetChoice::Full => "Full quality (MP4)",
             PresetChoice::Gif => "GIF",
+            PresetChoice::Wav => "Audio only (WAV)",
         }
     }
 
@@ -42,12 +50,14 @@ impl PresetChoice {
             PresetChoice::Share => ExportKind::Share,
             PresetChoice::Full => ExportKind::Edit,
             PresetChoice::Gif => ExportKind::Gif,
+            PresetChoice::Wav => ExportKind::Wav,
         }
     }
 
     pub fn extension(self) -> &'static str {
         match self {
             PresetChoice::Gif => "gif",
+            PresetChoice::Wav => "wav",
             _ => "mp4",
         }
     }
@@ -110,6 +120,7 @@ pub fn build_preset(
         },
         PresetChoice::Full => ExportPreset::Full,
         PresetChoice::Gif => ExportPreset::Gif(gif),
+        PresetChoice::Wav => ExportPreset::Wav,
     }
 }
 
@@ -140,9 +151,14 @@ impl ExportContext<'_> {
             .collect()
     }
 
-    /// Why Export can't run now, if it can't.
-    fn blocked(&self) -> Option<&'static str> {
-        if self.fonts.is_none() && !self.shown_captions().is_empty() {
+    /// Why Export can't run now with `choice`, if it can't.
+    fn blocked(&self, choice: PresetChoice) -> Option<&'static str> {
+        if choice == PresetChoice::Wav && self.info.audio_tracks == 0 {
+            Some("This clip has no audio")
+        } else if choice != PresetChoice::Wav
+            && self.fonts.is_none()
+            && !self.shown_captions().is_empty()
+        {
             Some("Waiting for the fonts to load")
         } else {
             None
@@ -273,7 +289,11 @@ impl ExportBar {
                     .width(170.0)
                     .show_ui(ui, |ui| {
                         for choice in PresetChoice::ALL {
-                            ui.selectable_value(&mut self.choice, choice, choice.label());
+                            let silent = choice == PresetChoice::Wav && cx.info.audio_tracks == 0;
+                            ui.add_enabled_ui(!silent, |ui| {
+                                ui.selectable_value(&mut self.choice, choice, choice.label())
+                                    .on_disabled_hover_text("This clip has no audio");
+                            });
                         }
                     })
                     .response
@@ -348,7 +368,7 @@ impl ExportBar {
                         ui.label(RichText::new("Cancelling…").color(style::SUBTEXT));
                     }
                 } else {
-                    let blocked = cx.blocked();
+                    let blocked = cx.blocked(self.choice);
                     let button = egui::Button::new(
                         RichText::new("Export").strong().color(egui::Color32::BLACK),
                     )
@@ -392,7 +412,7 @@ impl ExportBar {
     /// Starts the export with the current settings, asking where to save
     /// it first for a file.
     pub fn start(&mut self, ctx: &egui::Context, cx: &ExportContext) {
-        if self.running.is_some() || cx.blocked().is_some() {
+        if self.running.is_some() || cx.blocked(self.choice).is_some() {
             return;
         }
         let kind = self.choice.kind();
@@ -431,7 +451,9 @@ impl ExportBar {
             cut: cx.cut,
             gains: cx.gains.clone(),
             overlay: match (&cx.fonts, captions.is_empty()) {
-                (Some(fonts), false) => Some((fonts.clone(), captions)),
+                (Some(fonts), false) if self.choice != PresetChoice::Wav => {
+                    Some((fonts.clone(), captions))
+                }
                 _ => None,
             },
             to_clipboard,
@@ -526,8 +548,10 @@ mod tests {
         assert_eq!(PresetChoice::Share.kind(), ExportKind::Share);
         assert_eq!(PresetChoice::Full.kind(), ExportKind::Edit);
         assert_eq!(PresetChoice::Gif.kind(), ExportKind::Gif);
+        assert_eq!(PresetChoice::Wav.kind(), ExportKind::Wav);
         assert_eq!(PresetChoice::Share.extension(), "mp4");
         assert_eq!(PresetChoice::Gif.extension(), "gif");
+        assert_eq!(PresetChoice::Wav.extension(), "wav");
 
         let tmp = tempfile::tempdir().unwrap();
         let folder = tmp.path().join("Replay_x");
@@ -546,6 +570,7 @@ mod tests {
         assert_eq!(name(PresetChoice::Share), "Replay_x-share.mp4");
         assert_eq!(name(PresetChoice::Full), "Replay_x-edit.mp4");
         assert_eq!(name(PresetChoice::Gif), "Replay_x.gif");
+        assert_eq!(name(PresetChoice::Wav), "Replay_x.wav");
     }
 
     #[test]
@@ -662,6 +687,14 @@ mod real_tests {
                 to_clipboard: false,
             });
             assert_eq!(done.bytes, std::fs::metadata(&output).unwrap().len());
+            if choice == PresetChoice::Wav {
+                // 2 s of 16-bit stereo 48 kHz, after the 44-byte header.
+                let seconds = (done.bytes - 44) as f64 / 192_000.0;
+                assert!((seconds - 2.0).abs() < 0.01, "WAV: {seconds} s");
+                let estimate = montage_media::estimate_bytes(&info, &ExportPreset::Wav, cut);
+                assert_eq!(estimate, done.bytes, "the WAV estimate is exact");
+                continue;
+            }
             let out = montage_media::probe(&output).unwrap();
             assert!(
                 (out.duration - 2.0).abs() < 0.2,

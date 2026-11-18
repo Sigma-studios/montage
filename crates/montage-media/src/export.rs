@@ -156,7 +156,7 @@ fn share_once(
     let mut part = PartFile::new(output);
 
     progress(0.0);
-    let mix = mix_audio(input, plan.range, gains, cancel)?;
+    let mix = mix_audio(input, plan.range, gains, cancel, &mut |_| {})?;
 
     // Pass 1: video only, packets dropped; x264 writes its stats.
     {
@@ -758,11 +758,13 @@ struct Track {
 
 /// Decodes every audio track of `range` and mixes them, with their gains,
 /// into one stereo 48 kHz buffer. `None` when the clip has no audio.
+/// `progress` gets how far the slowest track got, 0.0..1.0.
 pub(crate) fn mix_audio(
     input: &Path,
     range: Cut,
     gains: &[f32],
     cancel: &AtomicBool,
+    progress: &mut dyn FnMut(f32),
 ) -> Result<Option<[Vec<f32>; 2]>, MediaError> {
     let mut ictx =
         ffmpeg::format::input(input).context(|| format!("can't open {}", input.display()))?;
@@ -798,6 +800,7 @@ pub(crate) fn mix_audio(
     }
 
     let mut mix = [vec![0.0f32; total], vec![0.0f32; total]];
+    let mut reported = 0.0f32;
     if !tracks.is_empty() {
         if range.start > 0.0 {
             seek_before(&mut ictx, range.start + offset)?;
@@ -818,6 +821,22 @@ pub(crate) fn mix_audio(
             drain_audio(track, &mut mix, start, offset)?;
             if tracks.iter().all(|t| t.done) {
                 break;
+            }
+            let slowest = tracks
+                .iter()
+                .map(|t| {
+                    if t.done {
+                        total as i64
+                    } else {
+                        t.pos.unwrap_or(0)
+                    }
+                })
+                .min()
+                .unwrap_or(0);
+            let done = (slowest.max(0) as f64 / total.max(1) as f64).min(1.0) as f32;
+            if done >= reported + 0.01 {
+                reported = done;
+                progress(done);
             }
         }
         for track in tracks.iter_mut().filter(|t| !t.done) {

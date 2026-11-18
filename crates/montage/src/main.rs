@@ -115,6 +115,7 @@ enum Preset {
     Share,
     Full,
     Gif,
+    Wav,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -184,6 +185,7 @@ fn run(cli: Cli) -> Result<()> {
                 Preset::Share => share::Preset::Share,
                 Preset::Full => share::Preset::Full,
                 Preset::Gif => share::Preset::Gif,
+                Preset::Wav => share::Preset::Wav,
             };
             let (output, description) =
                 share::export(&Config::load()?, &clip, preset, None, out.as_deref())?;

@@ -1,5 +1,5 @@
-//! Every export: the Share, Full quality and GIF presets, with the edit's
-//! cut, track gains and captions applied.
+//! Every export: the Share, Full quality, GIF and WAV presets, with the
+//! edit's cut, track gains and captions applied.
 
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
@@ -10,7 +10,7 @@ use montage_core::render::Overlay;
 use montage_core::share::SharePlan;
 
 use crate::export as pipeline;
-use crate::{MediaError, MediaInfo, full, gif};
+use crate::{MediaError, MediaInfo, full, gif, wav};
 
 pub enum ExportPreset {
     /// H.264 two-pass + AAC under `max_bytes`, planned by
@@ -24,6 +24,9 @@ pub enum ExportPreset {
     /// gifski, no audio, lowering the width then the frame rate until the
     /// file fits `max_bytes`.
     Gif(GifSettings),
+    /// The audio only: every track mixed down with its gain, 16-bit stereo
+    /// 48 kHz PCM. No captions. Fails on a clip without audio.
+    Wav,
 }
 
 pub struct ExportJob<'a> {
@@ -35,7 +38,8 @@ pub struct ExportJob<'a> {
     pub cut: Cut,
     /// Linear gain per audio track (missing entries 1.0; 0.0 mutes).
     pub gains: &'a [f32],
-    /// The captions, drawn on every frame at the export's size.
+    /// The captions, drawn on every frame at the export's size (ignored
+    /// for WAV).
     pub overlay: Option<&'a mut dyn Overlay>,
 }
 
@@ -80,6 +84,7 @@ pub fn export(
         ExportPreset::Gif(settings) => {
             gif::export_gif(input, output, settings, cut, overlay, cancel, progress)?
         }
+        ExportPreset::Wav => wav::export_wav(input, output, cut, gains, cancel, progress)?,
     };
     let bytes = pipeline::file_size(output)?;
     Ok(ExportReport { bytes, method })
@@ -95,8 +100,9 @@ const GIF_BYTES_PER_PIXEL: f64 = 0.25;
 /// Share: the plan's bitrates over its range. Full quality: the source's
 /// bitrate over the cut, which is what a stream copy gives and about what
 /// the constant quality re-encode lands on. GIF: a rough bytes per pixel
-/// per frame. Share and GIF never estimate over their size target, which
-/// the export holds to.
+/// per frame. WAV: exact, from the cut's length (0 without audio). Share
+/// and GIF never estimate over their size target, which the export holds
+/// to.
 pub fn estimate_bytes(info: &MediaInfo, preset: &ExportPreset, cut: Cut) -> u64 {
     match preset {
         ExportPreset::Share { plan, max_bytes } => {
@@ -127,6 +133,14 @@ pub fn estimate_bytes(info: &MediaInfo, preset: &ExportPreset, cut: Cut) -> u64 
             let frames = (cut.clamped(info.duration).duration() * f64::from(fps)).ceil();
             let bytes = f64::from(width) * f64::from(height) * frames * GIF_BYTES_PER_PIXEL;
             (bytes as u64).min(settings.max_bytes)
+        }
+        ExportPreset::Wav => {
+            if info.audio_tracks == 0 {
+                return 0;
+            }
+            let seconds = cut.clamped(info.duration).duration();
+            let frames = (seconds * f64::from(crate::export::RATE)).round() as u64;
+            wav::HEADER_BYTES + frames * (wav::BYTE_RATE / crate::export::RATE as u64)
         }
     }
 }

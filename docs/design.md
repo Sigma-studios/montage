@@ -4,7 +4,7 @@
 
 On Linux, Montage also runs gpu-screen-recorder's controls: see [`recorder.md`](recorder.md), which replaces this document where they disagree.
 
-Montage opens one saved clip, lets you cut it, mute or adjust each audio source, add text, and export it to the clipboard or a file, as MP4 or GIF. It runs on Linux, Windows and macOS.
+Montage opens one saved clip, lets you cut it, mute or adjust each audio source, add text, and export it to the clipboard or a file, as MP4, GIF, or audio only as WAV. It runs on Linux, Windows and macOS.
 
 On the Linux desktop it replaces the `gsr-clip-export` shell script in nixos-config: the automatic "save the replay, copy a small MP4 to the clipboard" step becomes `montage share`, so the editor and the automatic export use the same code and give the same output. On Windows and macOS there's no recorder hook. Montage edits the clips other recorders save (NVIDIA app, OBS, the macOS screen recorder), and `montage share` can be run by hand, from "Open with", or from a recorder's own "after save" script if it has one.
 
@@ -120,6 +120,7 @@ Keyboard shortcuts use Cmd instead of Ctrl on macOS, through egui's `Modifiers::
 | Share (default MP4) | H.264 + AAC, at most 20 MiB, 1080p or 720p at 60 fps, with `gsr-clip-export`'s bitrate rules: at least 2,000 kbit/s of video (a longer clip is cut instead), 1080p from 4,500, at most 8,000, AAC at 128. All of it is set in `config.toml`'s `[share]` |
 | Full quality | Copies the original video stream unchanged when nothing but the cut changed and the start falls on a keyframe (instant, lossless). Otherwise the GPU encoder at the original size and frame rate |
 | GIF | 480 px wide, 20 fps, no audio, a size target (default 10 MB) that lowers the width or frame rate until it fits; tunable in the export bar |
+| Audio only (WAV) | Every track mixed down with its volume, as the MP4s do, the cut applied, as 16-bit stereo 48 kHz PCM. No captions. Not offered for a clip without audio |
 
 Text forces a re-encode, so "Full quality" with text uses the GPU encoder.
 
@@ -137,6 +138,7 @@ Each clip gets its own folder holding the original, its edit and its exports, in
     Replay_2026-11-07_21-03-11-share.mp4   the automatic copy (/clip)
     Replay_2026-11-07_21-03-11-edit.mp4    exports from the editor
     Replay_2026-11-07_21-03-11.gif
+    Replay_2026-11-07_21-03-11.wav         an audio-only export
     .thumbs/                               filmstrip and waveform cache
 ```
 
@@ -163,7 +165,7 @@ montage open <clip>             the editor
 montage share <clip> [--type replay|regular|screenshot]
                                 headless: the Share preset to the clipboard, with the notification;
                                 what the recorder's save hook runs
-montage export <clip> --preset share|full|gif [--out <path>] [--clipboard]
+montage export <clip> --preset share|full|gif|wav [--out <path>] [--clipboard]
                                 headless export using the clip's saved edit
 montage settings                the settings page
 

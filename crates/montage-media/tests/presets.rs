@@ -14,7 +14,9 @@ use montage_core::share::{self, ClipKind, ShareSettings};
 use montage_media::{
     ExportJob, ExportPreset, ExportReport, MediaError, estimate_bytes, export, probe,
 };
-use support::{Spec, audio_stream_count, frame_indices, make_clip, rgba_frames, video_packets};
+use support::{
+    Spec, audio_stream_count, frame_indices, make_clip, rgba_frames, tone_amplitude, video_packets,
+};
 
 /// 4 s at 30 fps with a keyframe every 15 frames (0.5 s), two tones.
 fn four_seconds(dir: &Path) -> PathBuf {
@@ -250,6 +252,82 @@ fn full_reencodes_when_a_gain_changed() {
     assert_eq!((out.width, out.height, out.fps), (640, 360, 30.0));
     assert_eq!(out.audio_tracks, 1);
     assert_eq!(frame_indices(&output)[0], 30);
+}
+
+/// The left channel of a 16-bit stereo 48 kHz WAV, checking its header.
+fn wav_left(path: &Path) -> Vec<f32> {
+    let bytes = std::fs::read(path).unwrap();
+    assert_eq!(&bytes[0..4], b"RIFF");
+    assert_eq!(&bytes[8..16], b"WAVEfmt ");
+    let u16_at = |i: usize| u16::from_le_bytes([bytes[i], bytes[i + 1]]);
+    let u32_at = |i: usize| u32::from_le_bytes(bytes[i..i + 4].try_into().unwrap());
+    assert_eq!(u32_at(4) as usize, bytes.len() - 8);
+    assert_eq!(
+        (u16_at(20), u16_at(22), u32_at(24), u16_at(34)),
+        (1, 2, 48_000, 16)
+    );
+    assert_eq!(&bytes[36..40], b"data");
+    assert_eq!(u32_at(40) as usize, bytes.len() - 44);
+    bytes[44..]
+        .chunks_exact(4)
+        .map(|c| f32::from(i16::from_le_bytes([c[0], c[1]])) / 32767.0)
+        .collect()
+}
+
+#[test]
+fn wav_mixes_the_cut_with_the_gains() {
+    let tmp = tempfile::tempdir().unwrap();
+    let input = four_seconds(tmp.path());
+    let output = tmp.path().join("audio.wav");
+
+    let report = run(
+        &input,
+        &output,
+        ExportPreset::Wav,
+        cut(1.0, 3.0),
+        &[1.0, 0.0],
+        Some(&mut Red::default()),
+    )
+    .unwrap();
+    assert_eq!(report.method, "PCM 16-bit 48 kHz stereo");
+    let samples = wav_left(&output);
+    assert_eq!(samples.len(), 2 * 48_000);
+    let middle = &samples[12_000..84_000];
+    let kept = tone_amplitude(middle, 48_000, 440.0);
+    let muted = tone_amplitude(middle, 48_000, 1000.0);
+    assert!(kept > 0.1, "440 Hz at {kept}");
+    assert!(muted < 0.01, "1000 Hz at {muted}");
+
+    let info = probe(&input).unwrap();
+    assert_eq!(
+        estimate_bytes(&info, &ExportPreset::Wav, cut(1.0, 3.0)),
+        report.bytes
+    );
+}
+
+#[test]
+fn wav_of_a_silent_clip_fails_cleanly() {
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("silent.mp4");
+    make_clip(
+        &input,
+        &Spec {
+            width: 320,
+            height: 180,
+            fps: 30,
+            frames: 30,
+            tones: vec![],
+            noise: 0,
+        },
+    );
+    let output = tmp.path().join("silent.wav");
+    let result = run(&input, &output, ExportPreset::Wav, cut(0.0, 1.0), &[], None);
+    assert!(matches!(result, Err(MediaError::NoAudio(_))), "{result:?}");
+    assert_eq!(leftovers(tmp.path(), &[&input]), Vec::<PathBuf>::new());
+    assert_eq!(
+        estimate_bytes(&probe(&input).unwrap(), &ExportPreset::Wav, cut(0.0, 1.0)),
+        0
+    );
 }
 
 #[test]

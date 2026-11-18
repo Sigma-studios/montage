@@ -173,7 +173,7 @@ fn edit_changes_something(edit: &Edit) -> bool {
 }
 
 /// Whether the clip's folder holds one of its exports: `<name>-share….mp4`,
-/// `<name>-edit….mp4` or `<name>….gif`.
+/// `<name>-edit….mp4`, `<name>….gif` or `<name>….wav`.
 fn folder_has_export(clip: &Clip) -> bool {
     let name = clip.name().to_string_lossy().into_owned();
     let Ok(entries) = fs::read_dir(clip.folder()) else {
@@ -191,7 +191,7 @@ fn folder_has_export(clip: &Clip) -> bool {
         let ext = ext.to_string_lossy().to_ascii_lowercase();
         match ext.as_str() {
             "mp4" => rest.starts_with("-share") || rest.starts_with("-edit"),
-            "gif" => rest.is_empty() || rest.starts_with('-'),
+            "gif" | "wav" => rest.is_empty() || rest.starts_with('-'),
             _ => false,
         }
     })

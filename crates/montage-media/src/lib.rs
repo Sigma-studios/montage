@@ -14,6 +14,7 @@ mod gif;
 mod job;
 mod player;
 mod thumbs;
+mod wav;
 
 use std::path::{Path, PathBuf};
 use std::sync::Once;
@@ -35,6 +36,8 @@ pub enum MediaError {
     },
     #[error("{0} has no video stream")]
     NoVideo(PathBuf),
+    #[error("{0} has no audio track")]
+    NoAudio(PathBuf),
     #[error("this FFmpeg has no {0} encoder")]
     NoEncoder(&'static str),
     #[error("{action} {path}: {source}")]

@@ -2,7 +2,7 @@
 
 A clip editor for the replay buffer, for Linux, Windows and macOS. Open one
 saved clip, cut it, mute or adjust each audio track, add text, and export it
-to the clipboard or a file, as MP4 or GIF.
+to the clipboard or a file, as MP4, GIF, or audio only as WAV.
 
 On Linux it also runs gpu-screen-recorder: starting and stopping recordings,
 saving the replay buffer, the sounds, and sharing each new clip as a small MP4
@@ -18,7 +18,7 @@ montage                         the library
 montage open <clip>             the editor
 montage settings                the settings page
 montage share <clip> [--type replay|regular|screenshot]
-montage export <clip> --preset share|full|gif [--out <path>] [--clipboard]
+montage export <clip> --preset share|full|gif|wav [--out <path>] [--clipboard]
 
 Linux:
 montage record start|stop|toggle
@@ -52,8 +52,8 @@ programs.montage = { enable = true; recorder.enable = true; };
   recorder's command line and the Share rules. No libav, GPU or desktop code,
   so it builds and tests the same on every system.
 - `crates/montage-media`: libav: probing, the player (GPU decode, cpal audio),
-  the filmstrip, waveform and thumbnails, and the Share, Full quality and GIF
-  exports.
+  the filmstrip, waveform and thumbnails, and the Share, Full quality, GIF
+  and WAV exports.
 - `crates/montage-text`: captions: fonts, and text with a stroked outline.
 - `crates/montage`: the binary: the commands, the recorder controls, the
   window (`src/ui/`: library, editor, settings), and what differs per system
